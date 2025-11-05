@@ -1,6 +1,8 @@
+import os
 from sqlalchemy import create_engine, text
 
-DB_URL = "sqlite:///movies.db"
+DB_PATH = os.path.join("data", "movies.db")
+DB_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DB_URL, echo=False)
 
 with engine.connect() as connection:

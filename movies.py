@@ -1,9 +1,14 @@
-import movie_storage_sql as moviestorage
-import omdb_api
+import os
 import statistics
 import random
 from fuzzywuzzy import process
+from movie_storage import omdb_api, movie_storage_sql as moviestorage
 
+DATA_PATH = os.path.join("data", "movies.db")
+TEMPLATE_PATH = os.path.join("_static", "index_template.html")
+STYLE_PATH = os.path.join("_static", "style.css")
+OUTPUT_PATH = "index.html"
+APP_TITLE = "My Movie App"
 
 def prompt_non_empty(prompt):
     """Prompt the user for input until a non-empty string is entered.
@@ -214,11 +219,9 @@ def sort_movies_by_rating():
 
 def generate_website():
     """Generate HTML website from template and movie data."""
-    template_path = "_static/index_template.html"
-    output_path = "index.html"
-    app_title = "My Movie App"
 
-    with open(template_path, encoding="utf-8") as f:
+
+    with open(TEMPLATE_PATH, encoding="utf-8") as f:
         template_html = f.read()
 
     movies = moviestorage.list_movies()
@@ -237,7 +240,7 @@ def generate_website():
         ''')
 
     full_grid_html = '<ol class="movie-grid">\n' + "\n".join(grid_items) + '\n</ol>'
-    rendered_content = template_html.replace("__TEMPLATE_TITLE__", app_title)
+    rendered_content = template_html.replace("__TEMPLATE_TITLE__", APP_TITLE)
     rendered_content = rendered_content.replace("__TEMPLATE_MOVIE_GRID__", full_grid_html)
 
     # Wrap in full HTML structure to keep the template unchanged
@@ -245,15 +248,15 @@ def generate_website():
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{app_title}</title>
-    <link rel="stylesheet" href="_static/style.css">
+    <title>{APP_TITLE}</title>
+    <link rel="stylesheet" href="{STYLE_PATH}">
 </head>
 <body>
     {rendered_content}
 </body>
 </html>
 """
-    with open(output_path, "w", encoding="utf-8") as out_f:
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
         out_f.write(final_html)
 
     print("Website was generated successfully.")
