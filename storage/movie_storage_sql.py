@@ -26,21 +26,23 @@ with engine.connect() as connection:
     """))
     connection.commit()
 
-def list_movies():
+def list_movies(user_id):
     """Retrieve all movies from the database.
 
     Returns:
         dict: Mapping of movie titles to details (year, rating, poster_url).
     """
     with engine.connect() as connection:
-        result = connection.execute(text("SELECT title, year, rating, poster_url FROM movies"))
+        result = connection.execute(text(
+            "SELECT title, year, rating, poster_url FROM movies WHERE user_id = :user_id"
+        ), {"user_id": user_id})
         movies = result.fetchall()
     return {
         row[0]: {"year": row[1], "rating": row[2], "poster_url": row[3]}
         for row in movies
     }
 
-def add_movie(title, year, rating, poster_url=None):
+def add_movie(user_id, title, year, rating, poster_url=None):
     """Add a new movie to the database.
 
     Args:
@@ -52,29 +54,29 @@ def add_movie(title, year, rating, poster_url=None):
     with engine.connect() as connection:
         try:
             connection.execute(
-                text("INSERT INTO movies (title, year, rating, poster_url) VALUES (:title, :year, :rating, :poster_url)"),
-                {"title": title, "year": year, "rating": rating, "poster_url": poster_url}
+                text("INSERT INTO movies (user_id, title, year, rating, poster_url) VALUES (:user_id, :title, :year, :rating, :poster_url)"),
+                {"user_id": user_id, "title": title, "year": year, "rating": rating, "poster_url": poster_url}
             )
             connection.commit()
             print(f"Movie '{title}' added successfully.")
         except Exception as e:
             print(f"Error: {e}")
 
-def delete_movie(title):
+def delete_movie(title, user_id):
     """Delete a movie from the database by title.
 
     Args:
         title (str): Title of the movie to delete.
     """
     with engine.connect() as connection:
-        result = connection.execute(text("DELETE FROM movies WHERE title = :title"), {"title": title})
+        result = connection.execute(text("DELETE FROM movies WHERE title = :title AND user_id = :user_id"), {"title": title, "user_id": user_id})
         connection.commit()
         if result.rowcount > 0:
             print(f"Movie '{title}' deleted successfully.")
         else:
             print(f"Movie '{title}' not found.")
 
-def update_movie(title, rating):
+def update_movie(title, rating, user_id):
     """Update the rating of a movie.
 
     Args:
@@ -83,8 +85,8 @@ def update_movie(title, rating):
     """
     with engine.connect() as connection:
         result = connection.execute(
-            text("UPDATE movies SET rating = :rating WHERE title = :title"),
-            {"rating": rating, "title": title}
+            text("UPDATE movies SET rating = :rating WHERE title = :title AND user_id = :user_id"),
+            {"rating": rating, "title": title, "user_id": user_id}
         )
         connection.commit()
         if result.rowcount > 0:

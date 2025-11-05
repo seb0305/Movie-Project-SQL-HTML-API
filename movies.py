@@ -2,7 +2,11 @@ import os
 import statistics
 import random
 from fuzzywuzzy import process
-from movie_storage import omdb_api, movie_storage_sql as moviestorage
+from storage import omdb_api, movie_storage_sql as moviestorage
+from storage import user_storage_sql as user_storage
+
+active_user_id = None
+active_username = None
 
 def prompt_non_empty(prompt):
     """Prompt the user for input until a non-empty string is entered.
@@ -78,11 +82,12 @@ def print_menu():
     print(" 7. Search movie")
     print(" 8. Movies sorted by rating")
     print(" 9. Generate website")
+    print("10. Choose user")
 
 
 def list_movies():
     """List all movies in storage."""
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     print(f"{len(movies)} movies in total")
     for movie, info in movies.items():
         print(f"{movie} Rating {info['rating']} Year {info['year']}")
@@ -91,7 +96,7 @@ def list_movies():
 def add_movie():
     """Add new movie using OMDb data if available."""
     movie_to_add = prompt_non_empty("\033[33mAdd which movie? \033[0m")
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if movie_to_add in movies:
         print("Movie exists already. Use the --Update Movie-- option.")
         return
@@ -103,7 +108,7 @@ def add_movie():
             rating_str = data.get("imdbRating", "0.0")
             rating = float(rating_str) if rating_str != "N/A" else 0.0
             poster_url = data.get("Poster")
-            moviestorage.add_movie(title, year, rating, poster_url)
+            moviestorage.add_movie(active_user_id, title, year, rating, poster_url)
             print(f"Added '{title}' (Year: {year}, Rating: {rating}), poster URL saved.")
             return
         print("Movie not found in OMDb or API issue. Add manually.")
@@ -118,9 +123,9 @@ def add_movie():
 def delete_movie():
     """Delete a movie by title."""
     movie_to_delete = prompt_non_empty("\033[33mDelete which movie? \033[0m")
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if movie_to_delete in movies:
-        moviestorage.delete_movie(movie_to_delete)
+        moviestorage.delete_movie(movie_to_delete, active_user_id)
     else:
         print("\033[31mError: Movie not found.\033[0m")
 
@@ -128,17 +133,17 @@ def delete_movie():
 def update_movie():
     """Update movie rating."""
     movie_to_update = prompt_non_empty("\033[33mUpdate rating of which movie? \033[0m")
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if movie_to_update in movies:
         rating = prompt_float("\033[33mNew rating 1-10 \033[0m", 1.0, 10.0)
-        moviestorage.update_movie(movie_to_update, rating)
+        moviestorage.update_movie(movie_to_update, rating, active_user_id)
     else:
         print("\033[31mError: Movie not found.\033[0m")
 
 
 def stats():
     """Print statistics about stored movies."""
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if not movies:
         print("No movies available to compute statistics.")
         return
@@ -165,7 +170,7 @@ def random_movie():
     Chooses a movie from storage and prints its details.
     Handles the case of an empty database.
     """
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if not movies:
         print("No movies available.")
         return
@@ -180,7 +185,7 @@ def search_movie():
     Prompts user for part of the movie name.
     Prints direct matches or fuzzy suggestions with similarity scores.
     """
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     search_part = prompt_non_empty("\033[33mEnter part of movie name \033[0m").lower()
     found = False
     for movie in movies:
@@ -204,7 +209,7 @@ def sort_movies_by_rating():
 
     Retrieves all movies and prints them sorted from highest to lowest rating.
     """
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     sorted_by_value_desc = dict(sorted(movies.items(), key=lambda item: item[1]['rating'], reverse=True))
     print(f"{len(sorted_by_value_desc)} movies in total")
     for title, info in sorted_by_value_desc.items():
@@ -213,14 +218,15 @@ def sort_movies_by_rating():
 
 def generate_website():
     """Generate HTML website from template and movie data."""
+    filename = f"{active_username}'s movie website.html"
     template_path = "_static/index_template.html"
-    output_path = "index.html"
+    output_path = filename
     app_title = "My Movie App"
 
     with open(template_path, encoding="utf-8") as f:
         template_html = f.read()
 
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     grid_items = []
     for movie, data in movies.items():
         poster = data.get('poster_url') or ""
@@ -258,8 +264,31 @@ def generate_website():
     print("Website was generated successfully.")
 
 
+def choose_user():
+    global active_user_id, active_username
+    username = input("Enter your username: ").strip()
+    if not username:
+        print("Username cannot be empty.")
+        return choose_user()
+    users = {u[1]: u[0] for u in user_storage.list_users()}
+    if username in users:
+        active_user_id = users[username]
+        active_username = username
+        print(f"Welcome back, {username}!")
+    else:
+        new_id = user_storage.create_user(username)
+        if new_id:
+            active_user_id = new_id
+            active_username = username
+            print(f"User '{username}' created and logged in.")
+        else:
+            print("Could not create user, try again.")
+            return choose_user()
+
+
 def main():
     """Main loop to select commands."""
+
     dispatch = {
         '1': list_movies,
         '2': add_movie,
@@ -270,6 +299,7 @@ def main():
         '7': search_movie,
         '8': sort_movies_by_rating,
         '9': generate_website,
+        '10': choose_user
     }
 
     while True:
@@ -286,4 +316,5 @@ def main():
 
 
 if __name__ == "__main__":
+    choose_user()
     main()
