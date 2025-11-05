@@ -3,12 +3,16 @@ import statistics
 import random
 from fuzzywuzzy import process
 from movie_storage import omdb_api, movie_storage_sql as moviestorage
+from user import user_management
 
 DATA_PATH = os.path.join("data", "movies.db")
 TEMPLATE_PATH = os.path.join("_static", "index_template.html")
 STYLE_PATH = os.path.join("_static", "style.css")
 OUTPUT_PATH = "index.html"
 APP_TITLE = "My Movie App"
+
+active_user_id = None
+active_username = None
 
 def prompt_non_empty(prompt):
     """Prompt the user for input until a non-empty string is entered.
@@ -84,20 +88,25 @@ def print_menu():
     print(" 7. Search movie")
     print(" 8. Movies sorted by rating")
     print(" 9. Generate website")
+    print("10. Switch User")
 
 
-def list_movies():
-    """List all movies in storage."""
-    movies = moviestorage.list_movies()
-    print(f"{len(movies)} movies in total")
-    for movie, info in movies.items():
-        print(f"{movie} Rating {info['rating']} Year {info['year']}")
+def list_movies(user_id):
+    """List movies for active user."""
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("SELECT title, year, rating, poster_url FROM movies WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
+        movies = result.fetchall()
+    return {row[0]: {"year": row[1], "rating": row[2], "poster_url": row[3]} for row in movies}
+
 
 
 def add_movie():
-    """Add new movie using OMDb data if available."""
+    """Add movie for active user using OMDb API with fallback."""
     movie_to_add = prompt_non_empty("\033[33mAdd which movie? \033[0m")
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if movie_to_add in movies:
         print("Movie exists already. Use the --Update Movie-- option.")
         return
@@ -118,33 +127,33 @@ def add_movie():
         print("Add movie manually.")
     rating = prompt_float("\033[33mRate 1-10 \033[0m", 1.0, 10.0)
     year = prompt_int("\033[33mYear \033[0m", 1888, 2100)
-    moviestorage.add_movie(movie_to_add, year, rating)
+    moviestorage.add_movie(active_user_id, movie_to_add, year, rating)
 
 
 def delete_movie():
-    """Delete a movie by title."""
+    """Delete movie for active user."""
     movie_to_delete = prompt_non_empty("\033[33mDelete which movie? \033[0m")
     movies = moviestorage.list_movies()
     if movie_to_delete in movies:
-        moviestorage.delete_movie(movie_to_delete)
+        moviestorage.delete_movie(active_user_id, movie_to_delete)
     else:
         print("\033[31mError: Movie not found.\033[0m")
 
 
 def update_movie():
-    """Update movie rating."""
+    """Update movie rating for active user."""
     movie_to_update = prompt_non_empty("\033[33mUpdate rating of which movie? \033[0m")
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     if movie_to_update in movies:
         rating = prompt_float("\033[33mNew rating 1-10 \033[0m", 1.0, 10.0)
-        moviestorage.update_movie(movie_to_update, rating)
+        moviestorage.update_movie(active_user_id, movie_to_update, rating)
     else:
         print("\033[31mError: Movie not found.\033[0m")
 
 
 def stats():
-    """Print statistics about stored movies."""
-    movies = moviestorage.list_movies()
+    """Show statistics for active user's movies."""
+    movies = moviestorage.list_movies(active_user_id)
     if not movies:
         print("No movies available to compute statistics.")
         return
@@ -218,13 +227,11 @@ def sort_movies_by_rating():
 
 
 def generate_website():
-    """Generate HTML website from template and movie data."""
-
-
+    """Generate website for active user's movies."""
     with open(TEMPLATE_PATH, encoding="utf-8") as f:
         template_html = f.read()
 
-    movies = moviestorage.list_movies()
+    movies = moviestorage.list_movies(active_user_id)
     grid_items = []
     for movie, data in movies.items():
         poster = data.get('poster_url') or ""
@@ -240,7 +247,7 @@ def generate_website():
         ''')
 
     full_grid_html = '<ol class="movie-grid">\n' + "\n".join(grid_items) + '\n</ol>'
-    rendered_content = template_html.replace("__TEMPLATE_TITLE__", APP_TITLE)
+    rendered_content = template_html.replace("__TEMPLATE_TITLE__", f"{active_username}'s Movie Collection")
     rendered_content = rendered_content.replace("__TEMPLATE_MOVIE_GRID__", full_grid_html)
 
     # Wrap in full HTML structure to keep the template unchanged
@@ -248,7 +255,7 @@ def generate_website():
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{APP_TITLE}</title>
+    f'<title>{active_username} Movies</title>
     <link rel="stylesheet" href="{STYLE_PATH}">
 </head>
 <body>
@@ -256,14 +263,23 @@ def generate_website():
 </body>
 </html>
 """
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
+    with open(f"{active_username}.html", "w", encoding="utf-8") as out_f:
         out_f.write(final_html)
 
-    print("Website was generated successfully.")
+    print(f"Website {active_username}.html generated successfully.")
+
+
+def switch_user():
+    """Switch active user."""
+    global active_user_id, active_username
+    active_user_id, active_username = user_management.select_user()
 
 
 def main():
     """Main loop to select commands."""
+    global active_user_id, active_username
+    active_user_id, active_username = user_management.select_user()
+
     dispatch = {
         '1': list_movies,
         '2': add_movie,
@@ -274,6 +290,7 @@ def main():
         '7': search_movie,
         '8': sort_movies_by_rating,
         '9': generate_website,
+        '10': switch_user
     }
 
     while True:

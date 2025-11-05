@@ -6,14 +6,22 @@ DB_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DB_URL, echo=False)
 
 with engine.connect() as connection:
-    connection.execute(text("DROP TABLE IF EXISTS movies"))
     connection.execute(text("""
-        CREATE TABLE movies (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT UNIQUE NOT NULL,
+            username TEXT UNIQUE NOT NULL
+        )
+    """))
+    connection.execute(text("""
+        CREATE TABLE IF NOT EXISTS movies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
             year INTEGER NOT NULL,
             rating REAL NOT NULL,
-            poster_url TEXT
+            poster_url TEXT,
+            UNIQUE(user_id, title),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """))
     connection.commit()

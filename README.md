@@ -29,25 +29,15 @@ cd Movie-Project-SQL-HTML-API
 2. (Optional) Create and activate a virtual environment:
 python -m venv venv
 source venv/bin/activate # On Windows: venv\Scripts\activate
-
-text
-
 3. Install dependencies:
 pip install -r requirements.txt
-
-text
-
 4. Add your OMDb API key in `storage/omdb_api.py` by replacing:
 API_KEY = "YOUR_API_KEY" # Replace with your real key here
-
-text
 
 ## Usage
 
 Run the main program:
 python movies.py
-
-text
 
 You will be presented with a menu to interact with your movie database. Options include adding movies, listing them, deleting, updating, generating a website, and more.
 
