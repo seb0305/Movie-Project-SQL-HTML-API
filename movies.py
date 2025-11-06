@@ -231,12 +231,16 @@ def generate_website():
     for movie, data in movies.items():
         poster = data.get('poster_url') or ""
         year = data.get('year') or ""
+        rating = data.get('rating')
+        rating_display = f"Rating: {rating}" if rating is not None else ""
+
         grid_items.append(f'''
         <li>
             <div class="movie">
                 <img class="movie-poster" src="{poster}">
                 <div class="movie-title">{movie}</div>
                 <div class="movie-year">{year}</div>
+                <p>{rating_display}</p>
             </div>
         </li>
         ''')
