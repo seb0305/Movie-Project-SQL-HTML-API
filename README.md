@@ -123,5 +123,3 @@ python -m debugpy --listen 5678 movies.py
 
 ## 📄 License
 MIT – Free for personal and educational use.
-
-Built with ❤️ for movie‑loving Pythonistas.
